@@ -17,7 +17,7 @@ export class LoginService {
         });
 
         if (!user) {
-            throw new UnauthorizedException('Invalid credentials');
+            throw new UnauthorizedException('not exist email');
         }
 
         const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
