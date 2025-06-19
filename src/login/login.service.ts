@@ -34,6 +34,7 @@ export class LoginService {
 
         return {
             access_token: this.jwtService.sign(payload),
+            user: payload
         };
     }
 
