@@ -3,16 +3,8 @@ import { PrismaService } from "./prisma.service";
 import { JwtModule } from "@nestjs/jwt";
 
 @Module({
-    imports: [
-        JwtModule.register({
-            secret: process.env.JWT_SECRET || 'myJun0913',
-            signOptions: { expiresIn: '1h' },
-        }),
-    ],
+    imports: [],
     providers: [PrismaService],
-    exports: [
-        PrismaService, 
-        JwtModule
-    ],
+    exports: [PrismaService],
 })  
 export class CommonModule {}
