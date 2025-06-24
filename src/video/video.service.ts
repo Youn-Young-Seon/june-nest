@@ -1,11 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { CreateVideoDto } from './dto/create-video.dto';
-import { UpdateVideoDto } from './dto/update-video.dto';
 import { stat } from 'fs/promises';
+import { PrismaService } from 'src/common/prisma.service';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class VideoService {
-  async processVideo(createVideoDto: CreateVideoDto) {
+  constructor(private prisma: PrismaService) {}
+
+  async createVideo(file: Express.Multer.File, createVideoDto: CreateVideoDto, user: User) {
+    return this.prisma.video.create({
+      data: {
+        ...createVideoDto,
+        originalName: file.originalname,
+        fileName: file.filename,
+        filePath: file.path,
+        mimeType: file.mimetype,
+        size: file.size,
+        uploadedBy: { connect: { idx: user.idx } },
+      }
+    });
+  }
+
+  async processVideo(fileIdx: number, createVideoDto: CreateVideoDto) {
     return 'This action adds a new video';
   }
 

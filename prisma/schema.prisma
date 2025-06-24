@@ -15,9 +15,27 @@ model User {
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  Video Video[]
 }
 
 enum Role {
   admin
   user
+}
+
+model Video {
+    idx Int @id @default(autoincrement())
+    title         String
+    description   String?
+    originalName  String   // 업로드된 원본 파일명
+    fileName      String   // 서버에 저장된 파일명(중복 방지용)
+    filePath      String   // 서버에 저장된 전체 경로
+    thumbnailPath String?  // 썸네일 경로
+    mimeType      String
+    size          Int      // 파일 크기 (byte)
+    uploadedById  Int     // 업로더(사용자) ID (User와 연관)
+    uploadedBy    User    @relation(fields: [uploadedById], references: [idx])
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 }

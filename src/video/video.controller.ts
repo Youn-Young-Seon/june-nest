@@ -1,35 +1,58 @@
-import { Controller, Get, Param, Post, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Param, Post, Res, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { VideoService } from './video.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { createReadStream } from 'fs';
 import { Response } from 'express';
+import { CreateVideoDto } from './dto/create-video.dto';
+import { CurrentUser } from 'src/auth/decorators';
+import { User } from '@prisma/client';
 
 @Controller('video')
 export class VideoController {
+  private readonly logger = new Logger(VideoController.name);
+
   constructor(private readonly videoService: VideoService) {}
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', {
     storage: diskStorage({
-      destination: './uploads',
+      destination: join(process.cwd(), 'public', 'temp'),
       filename: (req, file, cb) => {
+        console.log('file name');
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
         cb(null, uniqueSuffix + extname(file.originalname));
       }
     }),
     fileFilter: (req, file, cb) => {
+      console.log('file filter');
       if (!file.mimetype.startsWith('video/')) {
-        return cb(new Error('Only video files are allowed'), false);
+        return cb(null, false);
       }
       cb(null, true);
     },
     limits: { fileSize: 1024 * 1024 * 1000 },
   }))
-  async uploadVideo(@UploadedFile() file: Express.Multer.File) {
-    await this.videoService.processVideo(file.path);
+  async uploadVideo(
+    @UploadedFile() file: Express.Multer.File, 
+    @Body() createVideoDto: CreateVideoDto,
+    @CurrentUser() user: User,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Only video files are allowed');
+    }
+    const video = await this.videoService.createVideo(
+      {...file},
+      createVideoDto,
+      user,
+    );
+    
+    await this.videoService.processVideo(video.idx, createVideoDto);
+
     return {
+      idx: video.idx,
+      title: video.title,
       filename: file.filename,
       path: file.path,
     }
@@ -37,7 +60,7 @@ export class VideoController {
 
   @Get('stream/:filename')
   async streamVideo(@Param('filename') filename: string, @Res() res: Response) {
-    const videoPath = join(process.cwd(), 'uploads', filename);
+    const videoPath = join(process.cwd(), 'public', 'temp', filename);
     const stat = await this.videoService.getVideoStat(videoPath);
     const fileSize = stat.size;
     const range = res.req.headers.range;
