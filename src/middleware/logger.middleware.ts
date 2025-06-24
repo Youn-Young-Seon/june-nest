@@ -17,7 +17,7 @@ export class LoggerMiddleware implements NestMiddleware {
         if (token) {
             try {
                 const decoded = this.jwtService.verify(token);
-                this.logger.log("middleware decoded", decoded);
+                this.logger.log(`middleware decoded: ${decoded}`);
                 req['user'] = decoded;
             } catch (error) {
                 throw new UnauthorizedException('Invalid token');

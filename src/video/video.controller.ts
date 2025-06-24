@@ -20,13 +20,11 @@ export class VideoController {
     storage: diskStorage({
       destination: join(process.cwd(), 'public', 'temp'),
       filename: (req, file, cb) => {
-        console.log('file name');
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
         cb(null, uniqueSuffix + extname(file.originalname));
       }
     }),
     fileFilter: (req, file, cb) => {
-      console.log('file filter');
       if (!file.mimetype.startsWith('video/')) {
         return cb(null, false);
       }
@@ -39,9 +37,6 @@ export class VideoController {
     @Body() createVideoDto: CreateVideoDto,
     @CurrentUser() user: User,
   ) {
-    if (!file) {
-      throw new BadRequestException('Only video files are allowed');
-    }
     const video = await this.videoService.createVideo(
       {...file},
       createVideoDto,

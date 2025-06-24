@@ -25,8 +25,6 @@ export class JwtAuthGuard implements CanActivate {
             throw new UnauthorizedException('Access token user is required');
         }
 
-        this.logger.log('여기까지 잘 오지 ?');
-
         return true;
     }
 }
