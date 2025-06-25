@@ -6,7 +6,7 @@ import { extname, join } from 'path';
 import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { CreateVideoDto } from './dto/create-video.dto';
-import { CurrentUser } from 'src/auth/decorators';
+import { CurrentUser, Public } from 'src/auth/decorators';
 import { User } from '@prisma/client';
 
 @Controller('video')
@@ -51,6 +51,12 @@ export class VideoController {
       filename: file.filename,
       path: file.path,
     }
+  }
+
+  @Get()
+  @Public()
+  async getVideoList() {
+    return await this.videoService.getVideoList();
   }
 
   @Get('stream/:filename')

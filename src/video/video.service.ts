@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { stat } from 'fs/promises';
 import { PrismaService } from 'src/common/prisma.service';
@@ -6,6 +6,9 @@ import { User } from '@prisma/client';
 
 @Injectable()
 export class VideoService {
+
+  private readonly logger = new Logger(VideoService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async createVideo(file: Express.Multer.File, createVideoDto: CreateVideoDto, user: User) {
@@ -20,6 +23,37 @@ export class VideoService {
         uploadedBy: { connect: { idx: user.idx } },
       }
     });
+  }
+
+  async getVideoList() {
+    const videos = await this.prisma.video.findMany({
+      select: {
+        idx: true,
+        title: true,
+        description: true,
+        fileName: true,
+        filePath: true,
+        mimeType: true,
+        size: true,
+        thumbnailPath: true,
+        createdAt: true,
+        updatedAt: true,
+        uploadedBy: {
+          select: {
+            idx: true,
+            name: true,
+            email: true,
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    this.logger.debug('Videos:', videos);
+
+    return videos;
   }
 
   async processVideo(fileIdx: number, createVideoDto: CreateVideoDto) {
