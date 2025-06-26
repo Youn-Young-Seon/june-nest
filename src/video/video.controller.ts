@@ -59,8 +59,9 @@ export class VideoController {
     return await this.videoService.getVideoList();
   }
 
-  @Get('stream/:filename')
-  async streamVideo(@Param('filename') filename: string, @Res() res: Response) {
+  @Get('stream/:idx')
+  @Public()
+  async streamVideo(@Param('idx') filename: string, @Res() res: Response) {
     const videoPath = join(process.cwd(), 'public', 'temp', filename);
     const stat = await this.videoService.getVideoStat(videoPath);
     const fileSize = stat.size;
