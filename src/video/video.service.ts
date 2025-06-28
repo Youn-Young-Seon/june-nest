@@ -2,13 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { stat } from 'fs/promises';
 import { PrismaService } from 'src/common/prisma.service';
-import { User } from '@prisma/client';
-import { createReadStream } from 'fs';
+import { User, Video } from '@prisma/client';
+import { createReadStream, existsSync, mkdirSync } from 'fs';
 import { Response } from 'express';
+import { basename, dirname, join } from 'path';
+import ffmpegFluent from 'fluent-ffmpeg';
 
 @Injectable()
-export class VideoService {
-
+export class VideoService {  
   private readonly logger = new Logger(VideoService.name);
 
   constructor(private prisma: PrismaService) { }
@@ -58,8 +59,37 @@ export class VideoService {
     return videos;
   }
 
-  async processVideo(fileIdx: number, createVideoDto: CreateVideoDto) {
-    return 'This action adds a new video';
+  async processVideo(video: Video) {
+    const thumbnailDir = join(process.cwd(), 'public', 'temp', 'thumbnails');
+    if (!existsSync(thumbnailDir)) {
+      mkdirSync(thumbnailDir, { recursive: true });
+    }
+  
+    const thumbnailPath = join(thumbnailDir, `thumbnail_${video.idx}.jpg`);
+    const videoPath = video.filePath;
+    await this.generateThumbnail(videoPath, thumbnailPath);
+  
+    return await this.prisma.video.update({
+      where: {
+        idx: video.idx
+      },
+      data: {
+        thumbnailPath
+      }
+    });
+  }
+
+  private async generateThumbnail(videoPath: string, thumbnailPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      ffmpegFluent(videoPath)
+        .screenshots({
+          timestamps: ['10%'],
+          filename: basename(thumbnailPath),
+          folder: dirname(thumbnailPath),
+        })
+        .on('end', () => resolve())
+        .on('error', (err) => reject(err));
+    });
   }
 
   async findOne(id: number) {
@@ -122,5 +152,25 @@ export class VideoService {
 
   async getStat(videoPath: string) {
     return stat(videoPath);
+  }
+
+  async getThumbnailImage(idx: number) {
+    const video = await this.prisma.video.findUnique({
+      select: {
+        idx: true,
+        thumbnailPath: true
+      },
+      where: {
+        idx: idx
+      }
+    });
+
+    if (video && video.thumbnailPath !== null) {
+      if (!existsSync(join(process.cwd(), 'public', 'temp', 'thumbnails', `thumbnail_${video.idx}.jpg`))) {
+        return null;
+      }
+    }
+
+    return video.thumbnailPath;
   }
 }

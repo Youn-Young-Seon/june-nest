@@ -7,6 +7,7 @@ import { Response } from 'express';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { CurrentUser, Public } from 'src/auth/decorators';
 import { User } from '@prisma/client';
+import { createReadStream } from 'fs';
 
 @Controller('video')
 export class VideoController {
@@ -24,7 +25,8 @@ export class VideoController {
       }
     }),
     fileFilter: (req, file, cb) => {
-      if (!file.mimetype.startsWith('video/')) {
+      const allowedMimeTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/avi', 'video/mov', 'video/quicktime'];      
+      if (!allowedMimeTypes.includes(file.mimetype)) {
         return cb(null, false);
       }
       cb(null, true);
@@ -42,13 +44,14 @@ export class VideoController {
       user,
     );
     
-    await this.videoService.processVideo(video.idx, createVideoDto);
+    const thumbnail = await this.videoService.processVideo(video);
 
     return {
       idx: video.idx,
       title: video.title,
       filename: file.filename,
       path: file.path,
+      thumbnail
     }
   }
 
@@ -56,6 +59,27 @@ export class VideoController {
   @Public()
   async getVideoList() {
     return await this.videoService.getVideoList();
+  }
+
+  @Get(':idx')
+  @Public()
+  async getVideoDetail(@Param('idx') idx: string) {
+    return await this.videoService.findOne(+idx);
+  }
+
+  @Get(':idx/thumbnail')
+  @Public()
+  async getThumbnailImage(@Param('idx') idx: string, @Res() res: Response) {
+    const thumbnail = await this.videoService.getThumbnailImage(+idx);
+
+    if (!thumbnail) {
+      return res.status(404).json({ message: 'Thumbnail not found.' });
+    }
+
+    const stream = createReadStream(thumbnail);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    stream.pipe(res);
   }
 
   @Get('stream/:idx')
