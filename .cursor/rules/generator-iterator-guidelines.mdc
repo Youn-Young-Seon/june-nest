@@ -1,0 +1,414 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Generator, Iterator, and Iterable Protocol Guidelines
+
+## Overview
+This project should follow best practices for JavaScript/TypeScript Generator, Iterator, and Iterable protocols. These patterns enable efficient data processing, memory optimization, and elegant asynchronous programming.
+
+## Core Concepts
+
+### Iterator Protocol
+An iterator is an object that implements the iterator protocol by having a `next()` method that returns `{ value, done }`.
+
+### Iterable Protocol
+An iterable is an object that implements the iterable protocol by having a `Symbol.iterator` method that returns an iterator.
+
+### Generator Functions
+Generator functions are special functions that can pause and resume execution using `yield` statements.
+
+## Best Practices
+
+### 1. Prefer Generators for Sequential Data Generation
+
+```typescript
+// ✅ GOOD: Use generator for memory-efficient sequences
+function* generateRange(start: number, end: number) {
+  for (let i = start; i < end; i++) {
+    yield i;
+  }
+}
+
+// ❌ BAD: Creating large arrays in memory
+function createRange(start: number, end: number) {
+  const result = [];
+  for (let i = start; i < end; i++) {
+    result.push(i);
+  }
+  return result;
+}
+```
+
+### 2. Use Async Generators for Asynchronous Data Streams
+
+```typescript
+// ✅ GOOD: Async generator for streaming data
+async function* fetchPaginatedData(baseUrl: string) {
+  let page = 1;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const response = await fetch(`${baseUrl}?page=${page}`);
+    const data = await response.json();
+    
+    yield data.items;
+    
+    hasMore = data.hasNextPage;
+    page++;
+  }
+}
+
+// ✅ GOOD: Consuming async generator
+async function processData() {
+  for await (const batch of fetchPaginatedData('/api/data')) {
+    // Process each batch as it arrives
+    processBatch(batch);
+  }
+}
+```
+
+### 3. Implement Proper Error Handling
+
+```typescript
+// ✅ GOOD: Comprehensive error handling in generators
+function* safeDataProcessor<T>(source: Iterable<T>) {
+  try {
+    for (const item of source) {
+      yield processItem(item);
+    }
+  } catch (error) {
+    console.error('Processing error:', error);
+    // Optionally yield error recovery value
+    yield getErrorFallback();
+  } finally {
+    // Clean up resources
+    performCleanup();
+  }
+}
+```
+
+### 4. Use TypeScript Generics for Type Safety
+
+```typescript
+// ✅ GOOD: Type-safe iterator implementation
+class TypedIterator<T> implements Iterator<T> {
+  private index = 0;
+  
+  constructor(private items: T[]) {}
+  
+  next(): IteratorResult<T> {
+    if (this.index < this.items.length) {
+      return { value: this.items[this.index++], done: false };
+    }
+    return { value: undefined, done: true };
+  }
+}
+
+// ✅ GOOD: Generic generator function
+function* mapGenerator<T, U>(
+  source: Iterable<T>, 
+  mapper: (item: T) => U
+): Generator<U> {
+  for (const item of source) {
+    yield mapper(item);
+  }
+}
+```
+
+### 5. Implement Resource Management with Proper Cleanup
+
+```typescript
+// ✅ GOOD: Resource management in iterators
+class ResourceIterator<T> implements Iterator<T> {
+  private resource: any;
+  private isFinished = false;
+  
+  constructor(private source: T[]) {
+    this.resource = this.acquireResource();
+  }
+  
+  next(): IteratorResult<T> {
+    if (this.isFinished) {
+      return { done: true, value: undefined };
+    }
+    
+    // Implementation logic...
+    
+    return { done: false, value: this.source[0] };
+  }
+  
+  return(): IteratorResult<T> {
+    this.cleanup();
+    return { done: true, value: undefined };
+  }
+  
+  private cleanup() {
+    if (this.resource) {
+      this.releaseResource(this.resource);
+      this.resource = null;
+    }
+    this.isFinished = true;
+  }
+}
+```
+
+### 6. Use Generator Composition for Complex Flows
+
+```typescript
+// ✅ GOOD: Composing generators with yield*
+function* dataFlow<T>(source: Iterable<T>) {
+  yield* filterGenerator(source, isValid);
+  yield* transformGenerator(source, transform);
+  yield* batchGenerator(source, 100);
+}
+
+function* filterGenerator<T>(
+  source: Iterable<T>, 
+  predicate: (item: T) => boolean
+) {
+  for (const item of source) {
+    if (predicate(item)) {
+      yield item;
+    }
+  }
+}
+```
+
+## Performance Optimization
+
+### 1. Prefer Lazy Evaluation Over Eager Processing
+
+```typescript
+// ✅ GOOD: Lazy processing with generators
+function* processLargeDataset<T>(data: Iterable<T>) {
+  for (const item of data) {
+    // Process only when needed
+    yield expensiveOperation(item);
+  }
+}
+
+// ❌ BAD: Eager processing
+function processAllData<T>(data: T[]) {
+  return data.map(expensiveOperation); // Processes all at once
+}
+```
+
+### 2. Use Batch Processing for Large Datasets
+
+```typescript
+// ✅ GOOD: Batch processing generator
+function* batchProcessor<T>(
+  items: Iterable<T>, 
+  batchSize: number
+): Generator<T[]> {
+  let batch: T[] = [];
+  
+  for (const item of items) {
+    batch.push(item);
+    
+    if (batch.length >= batchSize) {
+      yield batch;
+      batch = [];
+    }
+  }
+  
+  if (batch.length > 0) {
+    yield batch;
+  }
+}
+```
+
+### 3. Implement Backpressure for Async Streams
+
+```typescript
+// ✅ GOOD: Controlled async processing
+async function* controlledAsyncProcessor<T>(
+  source: AsyncIterable<T>,
+  concurrency: number = 5
+) {
+  const buffer: Promise<T>[] = [];
+  
+  for await (const item of source) {
+    buffer.push(processAsync(item));
+    
+    if (buffer.length >= concurrency) {
+      yield await Promise.race(buffer);
+      buffer.splice(buffer.findIndex(p => p === buffer[0]), 1);
+    }
+  }
+  
+  // Process remaining items
+  while (buffer.length > 0) {
+    yield await Promise.race(buffer);
+    buffer.splice(0, 1);
+  }
+}
+```
+
+## Anti-Patterns to Avoid
+
+### 1. Don't Modify External State in Generators
+
+```typescript
+// ❌ BAD: Modifying external state
+let globalCounter = 0;
+function* badGenerator() {
+  globalCounter++; // Side effect
+  yield globalCounter;
+}
+
+// ✅ GOOD: Pure generator function
+function* goodGenerator(initialValue: number) {
+  let counter = initialValue;
+  while (true) {
+    yield counter++;
+  }
+}
+```
+
+### 2. Don't Create Infinite Generators Without Break Conditions
+
+```typescript
+// ❌ BAD: Infinite generator without control
+function* infiniteGenerator() {
+  while (true) {
+    yield Math.random();
+  }
+}
+
+// ✅ GOOD: Controlled infinite generator
+function* controlledGenerator(maxIterations: number = 1000) {
+  let count = 0;
+  while (count < maxIterations) {
+    yield count++;
+  }
+}
+```
+
+### 3. Don't Mix Sync and Async Patterns Incorrectly
+
+```typescript
+// ❌ BAD: Yielding promises in sync generator
+function* badAsyncGenerator() {
+  yield fetch('/api/data'); // Returns Promise<Response>
+}
+
+// ✅ GOOD: Proper async generator
+async function* goodAsyncGenerator() {
+  const response = await fetch('/api/data');
+  yield await response.json();
+}
+```
+
+## Integration with Functional Programming
+
+### Use with FxTS Library
+
+```typescript
+// ✅ GOOD: Combining generators with FxTS
+import { pipe, filter, map, take } from 'fxts';
+
+function* dataSource() {
+  let i = 0;
+  while (true) {
+    yield i++;
+  }
+}
+
+const processedData = pipe(
+  dataSource(),
+  filter(n => n % 2 === 0),
+  map(n => n * 2),
+  take(10)
+);
+```
+
+## Testing Generators and Iterators
+
+### 1. Test Iterator Behavior
+
+```typescript
+// ✅ GOOD: Testing iterator protocol
+describe('CustomIterator', () => {
+  it('should implement iterator protocol correctly', () => {
+    const iterator = new CustomIterator([1, 2, 3]);
+    
+    expect(iterator.next()).toEqual({ value: 1, done: false });
+    expect(iterator.next()).toEqual({ value: 2, done: false });
+    expect(iterator.next()).toEqual({ value: 3, done: false });
+    expect(iterator.next()).toEqual({ value: undefined, done: true });
+  });
+});
+```
+
+### 2. Test Generator Functions
+
+```typescript
+// ✅ GOOD: Testing generator functions
+describe('dataGenerator', () => {
+  it('should generate expected sequence', () => {
+    const gen = dataGenerator();
+    const results = [];
+    
+    for (const value of gen) {
+      results.push(value);
+      if (results.length >= 5) break; // Prevent infinite loop
+    }
+    
+    expect(results).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+```
+
+## Memory Management
+
+### 1. Always Clean Up Resources
+
+```typescript
+// ✅ GOOD: Proper resource cleanup
+function* resourceGenerator() {
+  const resource = acquireResource();
+  try {
+    yield resource.data;
+  } finally {
+    releaseResource(resource);
+  }
+}
+```
+
+### 2. Use WeakMap for Iterator State When Needed
+
+```typescript
+// ✅ GOOD: Using WeakMap for iterator state
+const iteratorState = new WeakMap();
+
+class StatefulIterator<T> implements Iterator<T> {
+  constructor(private items: T[]) {
+    iteratorState.set(this, { index: 0 });
+  }
+  
+  next(): IteratorResult<T> {
+    const state = iteratorState.get(this);
+    if (state.index < this.items.length) {
+      return { value: this.items[state.index++], done: false };
+    }
+    return { value: undefined, done: true };
+  }
+}
+```
+
+## Summary
+
+- **Prefer generators** for sequential data generation and memory efficiency
+- **Use async generators** for streaming asynchronous data
+- **Implement proper error handling** with try-catch-finally blocks
+- **Leverage TypeScript generics** for type safety
+- **Compose generators** using yield* for complex data flows
+- **Avoid side effects** and external state modifications
+- **Test iterator protocol** compliance thoroughly
+- **Clean up resources** properly to prevent memory leaks
+
+Following these guidelines will result in more maintainable, efficient, and robust code when working with generators, iterators, and iterables in JavaScript/TypeScript projects.
+
