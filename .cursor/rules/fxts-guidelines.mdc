@@ -1,0 +1,343 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# FxTS Functional Programming Guidelines
+
+## Overview
+This project uses [FxTS](mdc:https:/fxts.dev/docs) for functional programming patterns in TypeScript/JavaScript. FxTS provides two main categories of functions: **Lazy** (for lazy evaluation and iterators) and **Strict** (for strict evaluation on arrays and objects).
+
+## Function Categories
+
+### Lazy Functions
+Use lazy functions for:
+- Large datasets that don't need to be fully processed
+- Chaining operations that may not need all results
+- Memory-efficient data processing
+- Infinite or very large sequences
+
+Common lazy functions:
+- `map`, `filter`, `take`, `drop`, `chunk`, `flatten`, `uniq`
+- `range`, `repeat`, `cycle` for sequence generation
+- `concurrent`, `concurrentPool` for async operations
+
+### Strict Functions
+Use strict functions for:
+- Small to medium datasets
+- Operations that need immediate results
+- Final transformations in a pipeline
+- Simple data queries
+
+Common strict functions:
+- `reduce`, `find`, `some`, `every`, `includes`
+- `groupBy`, `countBy`, `partition`, `sortBy`
+- `pick`, `omit`, `prop`, `props` for object manipulation
+
+## Pipeline Composition
+
+### Preferred Pattern: Use `pipe` for Data Transformation
+```typescript
+// ✅ GOOD: Clear data transformation pipeline
+const processUsers = (users: User[]) =>
+  pipe(
+    users,
+    filter(user => user.isActive),
+    map(user => ({ ...user, displayName: `${user.firstName} ${user.lastName}` })),
+    sortBy(user => user.createdAt),
+    take(10)
+  );
+```
+
+### Use `pipeLazy` for Lazy Evaluation
+```typescript
+// ✅ GOOD: Lazy pipeline for large datasets
+const processLargeDataset = (data: Iterable<Item>) =>
+  pipeLazy(
+    data,
+    filter(item => item.isValid),
+    map(item => transform(item)),
+    chunk(100),
+    take(5) // Only process first 5 chunks
+  );
+```
+
+### Avoid Nested Function Calls
+```typescript
+// ❌ BAD: Hard to read nested calls
+const result = take(10, 
+  sortBy(user => user.createdAt,
+    map(user => ({ ...user, displayName: `${user.firstName} ${user.lastName}` }),
+      filter(user => user.isActive, users)
+    )
+  )
+);
+
+// ✅ GOOD: Use pipe for readability
+const result = pipe(
+  users,
+  filter(user => user.isActive),
+  map(user => ({ ...user, displayName: `${user.firstName} ${user.lastName}` })),
+  sortBy(user => user.createdAt),
+  take(10)
+);
+```
+
+## Data Transformation Best Practices
+
+### Object Manipulation
+```typescript
+// ✅ GOOD: Use FxTS object utilities
+const userSummary = pipe(
+  user,
+  pick(['id', 'name', 'email']),
+  evolve({
+    name: name => name.toUpperCase(),
+    email: email => email.toLowerCase()
+  })
+);
+
+// ✅ GOOD: Safe property access
+const userName = prop('name', user);
+const userProps = props(['name', 'email'], user);
+```
+
+### Array Processing
+```typescript
+// ✅ GOOD: Use appropriate functions for array operations
+const activeUsers = pipe(
+  users,
+  filter(user => user.isActive),
+  uniqBy(user => user.email), // Remove duplicates by email
+  sortBy(user => user.lastName)
+);
+
+// ✅ GOOD: Use reduce for aggregations
+const userStats = pipe(
+  users,
+  reduce((acc, user) => ({
+    total: acc.total + 1,
+    active: acc.active + (user.isActive ? 1 : 0)
+  }), { total: 0, active: 0 })
+);
+```
+
+### Conditional Logic
+```typescript
+// ✅ GOOD: Use functional conditional utilities
+const processUser = (user: User) => pipe(
+  user,
+  when(user => user.isNewUser, evolve({ status: () => 'pending' })),
+  unless(user => user.isVerified, omit(['sensitiveData']))
+);
+```
+
+## Performance Considerations
+
+### Lazy vs Strict Choice
+```typescript
+// ✅ GOOD: Use lazy for large datasets or partial processing
+const firstActiveUser = pipe(
+  users, // Large array
+  filter(user => user.isActive), // Lazy - stops when first match found
+  take(1), // Only need first result
+  toArray // Convert to array at the end
+);
+
+// ✅ GOOD: Use strict for small datasets or complete processing
+const userCount = pipe(
+  users, // Small array, need all results
+  filter(user => user.isActive),
+  size // Need complete count
+);
+```
+
+### Concurrent Processing
+```typescript
+// ✅ GOOD: Use concurrent for async operations
+const enrichedUsers = pipe(
+  users,
+  concurrent(async user => ({
+    ...user,
+    profile: await fetchUserProfile(user.id)
+  })),
+  toArray
+);
+
+// ✅ GOOD: Use concurrentPool for rate limiting
+const processedUsers = pipe(
+  users,
+  concurrentPool(5, async user => await processUser(user)), // Max 5 concurrent
+  toArray
+);
+```
+
+## Type Safety Guidelines
+
+### Generic Functions
+```typescript
+// ✅ GOOD: Explicit type annotations for complex transformations
+const transformUsers = <T extends User>(users: T[]): UserSummary[] =>
+  pipe(
+    users,
+    map((user: T): UserSummary => ({
+      id: user.id,
+      name: user.name,
+      isActive: user.isActive
+    }))
+  );
+```
+
+### Utility Functions
+```typescript
+// ✅ GOOD: Use FxTS type guards
+const validateUser = (user: unknown): user is User => 
+  isObject(user) && 
+  isString(prop('name', user)) && 
+  isBoolean(prop('isActive', user));
+
+// ✅ GOOD: Use isEmpty for null/undefined checks
+const hasValidEmail = (user: User): boolean => 
+  !isEmpty(user.email) && isString(user.email);
+```
+
+## Common Patterns
+
+### Data Aggregation
+```typescript
+// ✅ GOOD: Group and aggregate data
+const usersByDepartment = pipe(
+  users,
+  groupBy(user => user.department),
+  map(users => ({
+    count: size(users),
+    activeCount: pipe(users, filter(user => user.isActive), size)
+  }))
+);
+```
+
+### Error Handling
+```typescript
+// ✅ GOOD: Use throwIf for validation
+const validateAndProcess = (data: unknown) => pipe(
+  data,
+  throwIf(isEmpty, 'Data cannot be empty'),
+  throwIf(data => !isArray(data), 'Data must be an array'),
+  map(processItem)
+);
+```
+
+### Memoization
+```typescript
+// ✅ GOOD: Use memoize for expensive computations
+const expensiveComputation = memoize((input: string) => {
+  // Expensive operation
+  return computeResult(input);
+});
+```
+
+## Anti-Patterns to Avoid
+
+### Don't Mix Paradigms
+```typescript
+// ❌ BAD: Mixing imperative and functional styles
+const processUsers = (users: User[]) => {
+  const filtered = filter(user => user.isActive, users);
+  const result = [];
+  for (const user of filtered) {
+    result.push({ ...user, processed: true });
+  }
+  return result;
+};
+
+// ✅ GOOD: Pure functional approach
+const processUsers = (users: User[]) => pipe(
+  users,
+  filter(user => user.isActive),
+  map(user => ({ ...user, processed: true }))
+);
+```
+
+### Don't Ignore Lazy Evaluation Benefits
+```typescript
+// ❌ BAD: Converting to array too early
+const result = pipe(
+  largeDataset,
+  toArray, // Loses lazy evaluation benefits
+  filter(item => item.isValid),
+  take(10)
+);
+
+// ✅ GOOD: Keep lazy until the end
+const result = pipe(
+  largeDataset,
+  filter(item => item.isValid),
+  take(10),
+  toArray // Convert only when needed
+);
+```
+
+## Integration with NestJS
+
+### Service Layer
+```typescript
+// ✅ GOOD: Use FxTS in service methods
+@Injectable()
+export class UserService {
+  async getActiveUsers(): Promise<UserSummary[]> {
+    const users = await this.prisma.user.findMany();
+    
+    return pipe(
+      users,
+      filter(user => user.isActive),
+      map(user => this.toUserSummary(user)),
+      sortBy(user => user.createdAt)
+    );
+  }
+}
+```
+
+### Controller Layer
+```typescript
+// ✅ GOOD: Transform data in controllers
+@Controller('users')
+export class UserController {
+  @Get()
+  async getUsers(@Query() query: GetUsersQuery) {
+    const users = await this.userService.findUsers(query);
+    
+    return pipe(
+      users,
+      map(user => omit(['password', 'internalId'], user)),
+      when(() => query.includeInactive, identity),
+      unless(() => query.includeInactive, filter(user => user.isActive))
+    );
+  }
+}
+```
+
+## Testing with FxTS
+
+### Unit Tests
+```typescript
+// ✅ GOOD: Test functional pipelines
+describe('UserService', () => {
+  it('should process users correctly', () => {
+    const users = [
+      { id: 1, name: 'John', isActive: true },
+      { id: 2, name: 'Jane', isActive: false }
+    ];
+    
+    const result = pipe(
+      users,
+      filter(user => user.isActive),
+      map(user => user.name)
+    );
+    
+    expect(result).toEqual(['John']);
+  });
+});
+```
+
+Remember: FxTS promotes immutability, composability, and clear data transformation pipelines. Always prefer functional approaches over imperative ones when working with data transformations.
+

@@ -11,6 +11,9 @@ importers:
       '@ffmpeg-installer/ffmpeg':
         specifier: ^1.1.0
         version: 1.1.0
+      '@fxts/core':
+        specifier: ^1.13.2
+        version: 1.13.2
       '@nestjs/common':
         specifier: ^11.0.1
         version: 11.1.1(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -456,6 +459,9 @@ packages:
     resolution: {integrity: sha512-Drt5u2vzDnIONf4ZEkKtFlbvwj6rI3kxw1Ck9fpudmtgaZIHD4ucsWB2lCZBXRxJgXR+2IMSti+4rtM4C4rXgg==}
     cpu: [x64]
     os: [win32]
+
+  '@fxts/core@1.13.2':
+    resolution: {integrity: sha512-GEaYuq5P+wuVyqO22Ft6BGiRZq+QjJD3Vy6AA15imJjw1I1536IvVyPMz1K1cmOBAND0rdJ7Odgfw+8aB9BQTg==}
 
   '@hapi/hoek@9.3.0':
     resolution: {integrity: sha512-/c6rf4UJlmHlC9b5BaNvzAcFv7HZ2QHaV0D4/HNlBdvFnvQq8RI4kYdhyPCl7Xj+oWvTWQ8ujhqS53LIgAe6KQ==}
@@ -4088,6 +4094,10 @@ snapshots:
 
   '@ffmpeg-installer/win32-x64@4.1.0':
     optional: true
+
+  '@fxts/core@1.13.2':
+    dependencies:
+      tslib: 2.8.1
 
   '@hapi/hoek@9.3.0': {}
 

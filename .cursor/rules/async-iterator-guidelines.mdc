@@ -1,0 +1,436 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# JavaScript/TypeScript Async & Iterator Best Practices
+
+## Overview
+This guide establishes best practices for using Iterator/Iterable protocols and Promise/async-await patterns in JavaScript and TypeScript. These patterns are fundamental for handling asynchronous operations and data streaming efficiently.
+
+## Core Principles
+
+### 1. **ALWAYS prefer async/await over Promise chains**
+- More readable and maintainable code
+- Better error handling with try/catch
+- Easier debugging and stack traces
+
+### 2. **Use Iterator/Iterable for memory-efficient data processing**
+- Lazy evaluation for large datasets
+- Streaming data processing
+- Memory-conscious operations
+
+### 3. **Implement proper error handling and type safety**
+- Use Result types for safe error handling
+- Leverage TypeScript's type system
+- Handle partial failures gracefully
+
+## Iterator & Iterable Protocols
+
+### ✅ PREFERRED: Generator Functions for Iterables
+```typescript
+// GOOD: Clean, readable generator implementation
+function* fibonacciGenerator(max: number): Generator<number> {
+  let [a, b] = [0, 1];
+  while (a <= max) {
+    yield a;
+    [a, b] = [b, a + b];
+  }
+}
+
+// Usage
+const fibonacci = fibonacciGenerator(100);
+console.log([...fibonacci]); // [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+```
+
+### ✅ PREFERRED: Async Iterators for Streaming Data
+```typescript
+// GOOD: Async iterator for data streaming
+async function* processDataStream<T>(
+  dataSource: AsyncIterable<T>
+): AsyncGenerator<ProcessedData<T>> {
+  for await (const rawData of dataSource) {
+    try {
+      const processed = await processData(rawData);
+      if (processed) {
+        yield processed;
+      }
+    } catch (error) {
+      console.error('Processing error:', error);
+      // Continue processing other items
+    }
+  }
+}
+
+// Usage with for-await-of
+async function handleStream() {
+  const dataSource = new AsyncDataFetcher(['url1', 'url2', 'url3']);
+  
+  for await (const processedData of processDataStream(dataSource)) {
+    console.log('Processed:', processedData);
+  }
+}
+```
+
+### ❌ AVOID: Manual Iterator Implementation
+```typescript
+// BAD: Overly complex manual iterator
+class ManualIterator {
+  private index = 0;
+  
+  next() {
+    // Complex manual implementation
+    return { value: this.data[this.index++], done: this.index > this.data.length };
+  }
+}
+
+// GOOD: Use generator instead
+function* simpleGenerator(data: any[]) {
+  for (const item of data) {
+    yield item;
+  }
+}
+```
+
+## Promise & Async/Await Patterns
+
+### ✅ PREFERRED: Consistent async/await Usage
+```typescript
+// GOOD: Clean async/await pattern
+async function fetchUserData(userId: string): Promise<UserData> {
+  try {
+    const userResponse = await fetch(`/api/users/${userId}`);
+    const user = await userResponse.json();
+    
+    const profileResponse = await fetch(`/api/users/${user.id}/profile`);
+    const profile = await profileResponse.json();
+    
+    return { user, profile };
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    throw new Error(`Failed to fetch user data: ${error.message}`);
+  }
+}
+```
+
+### ✅ PREFERRED: Parallel Execution with Promise.all
+```typescript
+// GOOD: Parallel execution for independent operations
+async function fetchUserBundle(userId: string): Promise<UserBundle> {
+  try {
+    const [user, profile, posts] = await Promise.all([
+      fetch(`/api/users/${userId}`).then(r => r.json()),
+      fetch(`/api/profiles/${userId}`).then(r => r.json()),
+      fetch(`/api/posts?userId=${userId}`).then(r => r.json())
+    ]);
+    
+    return { user, profile, posts };
+  } catch (error) {
+    console.error('Error fetching user bundle:', error);
+    throw error;
+  }
+}
+```
+
+### ✅ PREFERRED: Graceful Error Handling with Promise.allSettled
+```typescript
+// GOOD: Handle partial failures gracefully
+async function fetchUsersWithPartialFailure(userIds: string[]): Promise<UserResult[]> {
+  const userPromises = userIds.map(async (id) => {
+    try {
+      const response = await fetch(`/api/users/${id}`);
+      const data = await response.json();
+      return { id, data, status: 'fulfilled' as const };
+    } catch (error) {
+      return { id, error: error.message, status: 'rejected' as const };
+    }
+  });
+
+  const results = await Promise.allSettled(userPromises);
+  return results.map((result, index) => ({
+    userId: userIds[index],
+    result: result.status === 'fulfilled' ? result.value : result.reason
+  }));
+}
+```
+
+## Advanced Patterns
+
+### ✅ PREFERRED: Type-Safe Result Pattern
+```typescript
+// GOOD: Type-safe error handling
+type Result<T, E = Error> = Success<T> | Failure<E>;
+
+interface Success<T> {
+  readonly _tag: 'Success';
+  readonly value: T;
+}
+
+interface Failure<E> {
+  readonly _tag: 'Failure';
+  readonly error: E;
+}
+
+const success = <T>(value: T): Success<T> => ({ _tag: 'Success', value });
+const failure = <E>(error: E): Failure<E> => ({ _tag: 'Failure', error });
+
+async function safeAsyncOperation<T>(
+  operation: () => Promise<T>
+): Promise<Result<T>> {
+  try {
+    const result = await operation();
+    return success(result);
+  } catch (error) {
+    return failure(error as Error);
+  }
+}
+```
+
+### ✅ PREFERRED: Timeout and Retry Patterns
+```typescript
+// GOOD: Robust async operations with timeout and retry
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Operation timed out')), timeoutMs);
+    })
+  ]);
+}
+
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
+      
+      console.warn(`Attempt ${attempt} failed, retrying in ${delayMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  throw lastError!;
+}
+```
+
+### ✅ PREFERRED: Concurrency Control
+```typescript
+// GOOD: Limit concurrent operations
+class ConcurrencyLimiter {
+  private running = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private maxConcurrency: number) {}
+
+  async execute<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const wrappedTask = async () => {
+        try {
+          this.running++;
+          const result = await task();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        } finally {
+          this.running--;
+          this.processQueue();
+        }
+      };
+
+      if (this.running < this.maxConcurrency) {
+        wrappedTask();
+      } else {
+        this.queue.push(wrappedTask);
+      }
+    });
+  }
+
+  private processQueue(): void {
+    if (this.queue.length > 0 && this.running < this.maxConcurrency) {
+      const task = this.queue.shift()!;
+      task();
+    }
+  }
+}
+```
+
+## Critical Anti-Patterns to Avoid
+
+### ❌ NEVER: Mix Promise chains with async/await
+```typescript
+// BAD: Inconsistent async patterns
+async function badMixedPattern() {
+  const result = await fetch('/api/data');
+  return result.json().then(data => data.value); // Don't mix!
+}
+
+// GOOD: Consistent async/await
+async function goodConsistentPattern() {
+  const result = await fetch('/api/data');
+  const data = await result.json();
+  return data.value;
+}
+```
+
+### ❌ NEVER: Unnecessary Promise wrapping
+```typescript
+// BAD: Unnecessary Promise constructor
+async function badPromiseWrapping() {
+  return new Promise(async (resolve) => {
+    const result = await someAsyncOperation();
+    resolve(result);
+  });
+}
+
+// GOOD: Direct async function
+async function goodDirectAsync() {
+  return await someAsyncOperation();
+}
+```
+
+### ❌ NEVER: Sequential execution of independent operations
+```typescript
+// BAD: Unnecessary sequential execution
+async function badSequentialPattern() {
+  const user = await fetchUser();
+  const profile = await fetchProfile();
+  const posts = await fetchPosts();
+  return { user, profile, posts };
+}
+
+// GOOD: Parallel execution
+async function goodParallelPattern() {
+  const [user, profile, posts] = await Promise.all([
+    fetchUser(),
+    fetchProfile(),
+    fetchPosts()
+  ]);
+  return { user, profile, posts };
+}
+```
+
+## NestJS Integration Best Practices
+
+### ✅ PREFERRED: Service Layer with Async Iterators
+```typescript
+// GOOD: NestJS service with streaming data
+@Injectable()
+export class UserService {
+  constructor(private prisma: PrismaService) {}
+
+  // Use async iterator for memory-efficient batch processing
+  async *getAllUsersStream(): AsyncGenerator<User[]> {
+    const batchSize = 100;
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const users = await this.prisma.user.findMany({
+        skip,
+        take: batchSize,
+        orderBy: { createdAt: 'asc' }
+      });
+
+      if (users.length > 0) {
+        yield users;
+        skip += batchSize;
+        hasMore = users.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  // Type-safe async operations
+  async findUserSafely(id: string): Promise<Result<User, string>> {
+    try {
+      const user = await this.prisma.user.findUnique({ where: { id } });
+      return user ? success(user) : failure('User not found');
+    } catch (error) {
+      return failure(`Database error: ${error.message}`);
+    }
+  }
+}
+```
+
+### ✅ PREFERRED: Controller with Proper Error Handling
+```typescript
+// GOOD: Controller with comprehensive error handling
+@Controller('users')
+export class UserController {
+  constructor(private userService: UserService) {}
+
+  @Get(':id')
+  async getUser(@Param('id') id: string): Promise<User> {
+    const result = await this.userService.findUserSafely(id);
+    
+    if (result._tag === 'Success') {
+      return result.value;
+    } else {
+      throw new NotFoundException(result.error);
+    }
+  }
+
+  @Get('stream')
+  async *getUserStream(): AsyncGenerator<User[]> {
+    for await (const userBatch of this.userService.getAllUsersStream()) {
+      yield userBatch;
+    }
+  }
+}
+```
+
+## Testing Async Code
+
+### ✅ PREFERRED: Test Async Functions Properly
+```typescript
+// GOOD: Comprehensive async testing
+describe('UserService', () => {
+  it('should handle async operations correctly', async () => {
+    const users = [
+      { id: 1, name: 'John', isActive: true },
+      { id: 2, name: 'Jane', isActive: false }
+    ];
+    
+    const result = await processUsers(users);
+    
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'John' })
+    ]));
+  });
+
+  it('should handle errors gracefully', async () => {
+    const mockError = new Error('Database error');
+    jest.spyOn(prisma.user, 'findMany').mockRejectedValue(mockError);
+    
+    const result = await userService.findUserSafely('invalid-id');
+    
+    expect(result._tag).toBe('Failure');
+    expect(result.error).toContain('Database error');
+  });
+});
+```
+
+## Key Takeaways
+
+1. **Always use async/await** instead of Promise chains for better readability
+2. **Implement proper error handling** with Result types and try/catch blocks
+3. **Use Promise.all** for parallel execution of independent operations
+4. **Leverage async iterators** for memory-efficient data processing
+5. **Control concurrency** to prevent overwhelming external services
+6. **Test async code thoroughly** with proper error scenarios
+7. **Keep consistent patterns** throughout your codebase
+
+Remember: Async code should be predictable, testable, and maintainable. These patterns help achieve robust asynchronous operations in modern JavaScript/TypeScript applications.
+
