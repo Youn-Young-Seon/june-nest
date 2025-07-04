@@ -6,6 +6,7 @@ import { User, Video } from '@prisma/client';
 import { createReadStream, existsSync, mkdirSync } from 'fs';
 import { Response } from 'express';
 import { basename, dirname, join } from 'path';
+import { pipe, filter, map, sortBy, take, groupBy, countBy, reduce, toArray } from '@fxts/core';
 import ffmpegFluent from 'fluent-ffmpeg';
 
 @Injectable()
@@ -56,7 +57,152 @@ export class VideoService {
 
     this.logger.debug('Videos:', videos);
 
-    return videos;
+    return pipe(
+      videos,
+      map(video => ({
+        ...video,
+        displayTitle: video.title || video.fileName || 'Untitled',
+        sizeInMB: Math.round(video.size / 1024 / 1024 * 100) / 100,
+        hasThumbnail: !!video.thumbnailPath,
+        uploaderName: video.uploadedBy.name || video.uploadedBy.email,
+        ageInDays: Math.floor((Date.now() - video.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+        isRecent: video.createdAt > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      })),
+      sortBy(video => video.createdAt),
+      sortBy(video => video.isRecent ? 0 : 1),
+      toArray
+    );
+  }
+
+  async getVideosByUser(userId: number) {
+    const videos = await this.prisma.video.findMany({
+      where: {
+        uploadedById: userId
+      },
+      select: {
+        idx: true,
+        title: true,
+        description: true,
+        fileName: true,
+        filePath: true,
+        mimeType: true,
+        size: true,
+        thumbnailPath: true,
+        createdAt: true,
+        updatedAt: true,
+        uploadedBy: {
+          select: {
+            idx: true,
+            name: true,
+            email: true,
+          }
+        }
+      }
+    });
+
+    return pipe(
+      videos,
+      map(video => ({
+        ...video,
+        displayTitle: video.title || video.fileName || 'Untitled',
+        sizeInMB: Math.round(video.size / 1024 / 1024 * 100) / 100,
+        hasThumbnail: !!video.thumbnailPath,
+        uploaderName: video.uploadedBy.name || video.uploadedBy.email,
+        ageInDays: Math.floor((Date.now() - video.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      })),
+      sortBy(video => video.createdAt),
+      toArray
+    );
+  }
+
+  async getVideoStatistics() {
+    const videos = await this.prisma.video.findMany({
+      select: {
+        idx: true,
+        title: true,
+        size: true,
+        mimeType: true,
+        createdAt: true,
+        uploadedBy: {
+          select: {
+            idx: true,
+            name: true,
+            email: true,
+          }
+        }
+      }
+    });
+
+    const totalVideos = videos.length;
+    const totalSizeInMB = videos.reduce((sum, video) => sum + video.size, 0) / 1024 / 1024;
+
+    const videosByMimeType = pipe(
+      videos,
+      countBy(video => video.mimeType)
+    );
+
+    const videosByUploader = pipe(
+      videos,
+      groupBy(video => video.uploadedBy.name || video.uploadedBy.email),
+      uploaderGroups => Object.entries(uploaderGroups).map(([uploader, videos]) => ({
+        uploader,
+        count: videos.length,
+        totalSizeMB: Math.round(videos.reduce((sum, video) => sum + video.size, 0) / 1024 / 1024 * 100) / 100
+      })),
+      sortBy(stat => -stat.count),
+      toArray
+    );
+
+    const recentVideos = pipe(
+      videos,
+      filter(video => video.createdAt > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+      toArray,
+      videos => videos.length
+    );
+
+    return {
+      totalVideos,
+      totalSizeInMB: Math.round(totalSizeInMB * 100) / 100,
+      videosByMimeType,
+      videosByUploader,
+      recentVideos
+    };
+  }
+
+  async getRecentVideos(limit: number = 10) {
+    const videos = await this.prisma.video.findMany({
+      select: {
+        idx: true,
+        title: true,
+        description: true,
+        fileName: true,
+        size: true,
+        thumbnailPath: true,
+        createdAt: true,
+        uploadedBy: {
+          select: {
+            idx: true,
+            name: true,
+            email: true,
+          }
+        }
+      }
+    });
+
+    return pipe(
+      videos,
+      filter(video => video.createdAt > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+      map(video => ({
+        ...video,
+        displayTitle: video.title || video.fileName || 'Untitled',
+        sizeInMB: Math.round(video.size / 1024 / 1024 * 100) / 100,
+        uploaderName: video.uploadedBy.name || video.uploadedBy.email,
+        ageInDays: Math.floor((Date.now() - video.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      })),
+      sortBy(video => video.createdAt),
+      take(limit),
+      toArray
+    );
   }
 
   async processVideo(video: Video) {
