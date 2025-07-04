@@ -651,5 +651,432 @@ const result = await pipe(
 
 Remember: FxTS promotes immutability, composability, and clear data transformation pipelines. Always prefer functional approaches over imperative ones when working with data transformations.
 
+## 🌊 Advanced Streaming & Generator Patterns
+
+### 🚨 Critical Issue: `tap` Function with AsyncIterableIterator
+
+**Problem**: When using `tap` with FxTS pipelines, you cannot directly access properties of items in an AsyncIterableIterator.
+
+```typescript
+// ❌ BAD: tap on AsyncIterableIterator
+const result = await pipe(
+  events,
+  toAsync,
+  map(event => transform(event)),
+  tap(event => console.log(event.type)), // ERROR: Property 'type' does not exist
+  toArray
+);
+
+// ✅ GOOD: Convert to array before tap
+const result = await pipe(
+  events,
+  toAsync,
+  map(event => transform(event)),
+  toArray,  // Convert to array first
+  tap(events => events.forEach(event => 
+    console.log(event.type) // Now we can access properties
+  ))
+);
+```
+
+### 🔑 Key Pattern: Logging in Streaming Pipelines
+
+```typescript
+// ✅ EXCELLENT: Proper logging pattern
+const uploadEvents = await pipe(
+  recentUploads,
+  toAsync,
+  filter(video => video.uploadedBy !== null),
+  map((video): VideoUploadEvent => ({
+    id: `upload-${video.idx}-${Date.now()}`,
+    type: 'VIDEO_UPLOAD',
+    timestamp: new Date(),
+    data: { /* ... */ }
+  })),
+  toArray, // Convert to array before logging
+  tap(events => events.forEach(event => 
+    this.logger.log(`📹 Video upload event: ${event.data.filename}`)
+  ))
+);
+```
+
+### 🌊 Generator Functions for Infinite Streams
+
+```typescript
+// ✅ EXCELLENT: AsyncGenerator for infinite event streams
+async *createEventStream(): AsyncGenerator<StreamEvent, never, unknown> {
+  let eventId = 1;
+  
+  while (true) {
+    try {
+      // Generate events from real data sources
+      const recentData = await this.fetchRecentData();
+      const event = await this.generateEvent(eventId++, recentData);
+      
+      yield event;
+      
+      // Control flow rate
+      await delay(Math.random() * 2000 + 500); // 0.5-2.5 seconds
+      
+    } catch (error) {
+      // Error recovery in streams
+      yield {
+        id: `error-${eventId++}`,
+        type: 'ERROR_EVENT',
+        timestamp: new Date(),
+        data: { error: error.message }
+      };
+      
+      await delay(5000); // Longer delay on errors
+    }
+  }
+}
+```
+
+### 🔄 Backpressure Control in Streaming
+
+```typescript
+// ✅ EXCELLENT: Controlled batch processing with backpressure
+async processStreamInBackground(): Promise<void> {
+  try {
+    let eventBuffer: StreamEvent[] = [];
+    
+    for await (const event of this.createEventStream()) {
+      if (!this.isStreaming) break;
+      
+      eventBuffer.push(event);
+      
+      // Backpressure: Process when buffer is full
+      if (eventBuffer.length >= 10) {
+        await this.processBatch(eventBuffer);
+        eventBuffer = []; // Clear buffer
+      }
+    }
+  } catch (error) {
+    this.logger.error('Stream processing error:', error);
+    this.isStreaming = false;
+  }
+}
+
+private async processBatch(events: StreamEvent[]): Promise<void> {
+  await pipe(
+    events,
+    toAsync,
+    chunk(5), // Process in smaller chunks
+    map(async (eventChunk) => {
+      return await pipe(
+        eventChunk,
+        toAsync,
+        map(async (event) => {
+          await delay(100); // Rate limiting
+          await this.processEvent(event);
+          return event;
+        }),
+        toArray
+      );
+    }),
+    toArray
+  );
+}
+```
+
+### 📊 Real-time Window Analysis
+
+```typescript
+// ✅ EXCELLENT: Time-based event window analysis
+async analyzeEventWindow(events: StreamEvent[]): Promise<WindowAnalysis> {
+  return await pipe(
+    events,
+    toAsync,
+    toArray, // Convert for analysis
+    
+    // Analysis transformation
+    (eventArray) => {
+      const eventCounts = eventArray.reduce((acc, event) => {
+        acc[event.type] = (acc[event.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const topEventType = Object.entries(eventCounts)
+        .sort(([,a], [,b]) => b - a)[0]?.[0] || 'none';
+      
+      return {
+        windowStart: new Date(Date.now() - 60000), // 1 minute window
+        windowEnd: new Date(),
+        eventCounts,
+        totalEvents: eventArray.length,
+        eventsPerSecond: eventArray.length / 60,
+        topEventType,
+        videoUploads: eventCounts['VIDEO_UPLOAD'] || 0,
+        userActivities: eventCounts['USER_ACTIVITY'] || 0,
+        systemMetrics: eventCounts['SYSTEM_METRIC'] || 0
+      };
+    }
+  );
+}
+```
+
+### 🎯 Event Stream Sampling
+
+```typescript
+// ✅ EXCELLENT: Probabilistic sampling for high-volume streams
+async sampleEventStream(events: StreamEvent[], sampleRate: number = 0.1): Promise<StreamEvent[]> {
+  return await pipe(
+    events,
+    toAsync,
+    filter(() => Math.random() < sampleRate), // Probabilistic sampling
+    toArray,
+    tap(sampledEvents => 
+      this.logger.log(`🎯 Sampled ${sampledEvents.length} events from ${events.length} total`)
+    )
+  );
+}
+```
+
+### 🔍 Multi-Criteria Stream Filtering
+
+```typescript
+// ✅ EXCELLENT: Complex filtering with multiple criteria
+async filterEventStream(
+  events: StreamEvent[], 
+  filters: {
+    eventTypes?: StreamEvent['type'][];
+    timeRange?: { start: Date; end: Date };
+    userId?: number;
+  }
+): Promise<StreamEvent[]> {
+  return await pipe(
+    events,
+    toAsync,
+    
+    // Event type filter
+    filter(event => {
+      if (filters.eventTypes && !filters.eventTypes.includes(event.type)) {
+        return false;
+      }
+      return true;
+    }),
+    
+    // Time range filter
+    filter(event => {
+      if (filters.timeRange) {
+        const eventTime = event.timestamp.getTime();
+        const startTime = filters.timeRange.start.getTime();
+        const endTime = filters.timeRange.end.getTime();
+        return eventTime >= startTime && eventTime <= endTime;
+      }
+      return true;
+    }),
+    
+    // User ID filter
+    filter(event => {
+      if (filters.userId && event.data.userId) {
+        return event.data.userId === filters.userId;
+      }
+      return true;
+    }),
+    
+    toArray,
+    tap(filteredEvents => 
+      this.logger.log(`🔍 Filtered ${filteredEvents.length} events from ${events.length} total`)
+    )
+  );
+}
+```
+
+### 📈 Event Trend Analysis
+
+```typescript
+// ✅ EXCELLENT: Time-series trend analysis
+async analyzeEventTrends(events: StreamEvent[]): Promise<TrendAnalysis> {
+  return await pipe(
+    events,
+    toAsync,
+    
+    // Add time-based grouping info
+    map(event => ({
+      ...event,
+      hour: event.timestamp.getHours(),
+      minute: Math.floor(event.timestamp.getMinutes() / 10) * 10 // 10-minute buckets
+    })),
+    
+    toArray,
+    
+    // Trend analysis
+    (eventArray) => {
+      const hourlyTrends = eventArray.reduce((acc, event) => {
+        const key = `${event.hour}:${event.minute}`;
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const typeTrends = eventArray.reduce((acc, event) => {
+        acc[event.type] = (acc[event.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return {
+        hourlyTrends,
+        typeTrends,
+        totalEvents: eventArray.length,
+        peakHour: Object.entries(hourlyTrends)
+          .sort(([,a], [,b]) => b - a)[0]?.[0] || 'none',
+        mostActiveType: Object.entries(typeTrends)
+          .sort(([,a], [,b]) => b - a)[0]?.[0] || 'none'
+      };
+    }
+  );
+}
+```
+
+### 🚦 Stream Rate Control Patterns
+
+```typescript
+// ✅ EXCELLENT: Rate-limited stream processing
+async processWithRateLimit<T>(
+  items: T[],
+  processor: (item: T) => Promise<void>,
+  rateLimit: number = 100 // ms between items
+): Promise<void> {
+  await pipe(
+    items,
+    toAsync,
+    map(async (item) => {
+      await processor(item);
+      await delay(rateLimit); // Rate control
+      return item;
+    }),
+    toArray
+  );
+}
+
+// ✅ EXCELLENT: Chunked processing with delays
+async processLargeDataset<T>(items: T[], chunkSize: number = 10): Promise<void> {
+  await pipe(
+    items,
+    toAsync,
+    chunk(chunkSize),
+    map(async (chunk) => {
+      // Process chunk
+      const results = await pipe(
+        chunk,
+        toAsync,
+        map(async (item) => await this.processItem(item)),
+        toArray
+      );
+      
+      // Delay between chunks
+      await delay(1000);
+      return results;
+    }),
+    toArray
+  );
+}
+```
+
+## 🚨 Streaming Anti-Patterns to Avoid
+
+### ❌ Anti-Pattern #6: Logging Before Array Conversion
+```typescript
+// ❌ BAD: Trying to log AsyncIterableIterator properties
+const result = await pipe(
+  data,
+  toAsync,
+  map(transform),
+  tap(item => console.log(item.property)), // ERROR: Property access on AsyncIterableIterator
+  toArray
+);
+
+// ✅ GOOD: Log after converting to array
+const result = await pipe(
+  data,
+  toAsync,
+  map(transform),
+  toArray,
+  tap(items => items.forEach(item => console.log(item.property)))
+);
+```
+
+### ❌ Anti-Pattern #7: Infinite Streams Without Control
+```typescript
+// ❌ BAD: No rate control or error handling
+async *badInfiniteStream() {
+  while (true) {
+    yield await fetchData(); // No delay, no error handling
+  }
+}
+
+// ✅ GOOD: Controlled infinite stream
+async *goodInfiniteStream() {
+  while (true) {
+    try {
+      const data = await fetchData();
+      yield data;
+      await delay(1000); // Rate control
+    } catch (error) {
+      console.error('Stream error:', error);
+      await delay(5000); // Longer delay on error
+    }
+  }
+}
+```
+
+### ❌ Anti-Pattern #8: No Backpressure Management
+```typescript
+// ❌ BAD: Processing without backpressure control
+for await (const event of eventStream) {
+  await processEvent(event); // Can overwhelm system
+}
+
+// ✅ GOOD: Batched processing with backpressure
+let buffer: Event[] = [];
+for await (const event of eventStream) {
+  buffer.push(event);
+  
+  if (buffer.length >= 10) {
+    await processBatch(buffer);
+    buffer = [];
+  }
+}
+```
+
+## 📋 Streaming Patterns Summary
+
+### 🔑 Critical Streaming Rules:
+1. **Always convert to array before `tap`** when accessing item properties
+2. **Use generators for infinite streams** with proper error handling and rate control
+3. **Implement backpressure** in high-volume stream processing
+4. **Add delays for rate limiting** to prevent system overload
+5. **Use chunking for memory efficiency** when processing large datasets
+6. **Implement proper error recovery** in infinite streams
+7. **Monitor and log stream health** with proper metrics
+
+### 🚨 Golden Streaming Pattern:
+```typescript
+// ✅ THE GOLDEN STREAMING PATTERN
+async processEventStream(): Promise<void> {
+  try {
+    for await (const event of this.createEventStream()) {
+      const processed = await pipe(
+        [event], // Convert single event to array
+        toAsync,
+        filter(this.isValidEvent),
+        map(this.transformEvent),
+        toArray,
+        tap(events => this.logEvents(events))
+      );
+      
+      await this.persistEvents(processed);
+      await delay(100); // Rate control
+    }
+  } catch (error) {
+    this.handleStreamError(error);
+  }
+}
+```
+
+Remember: Streaming with FxTS requires careful attention to type safety, rate control, and error handling. Always prioritize system stability over processing speed.
+
+
 
 
