@@ -7,6 +7,8 @@ import { UserModule } from './user/user.module';
 import { LoggerMiddleware } from './middleware/logger.middleware';
 import { AuthModule } from './auth/auth.module';
 import { VideoModule } from './video/video.module';
+import { BatchModule } from './batch/batch.module';
+import { StreamingModule } from './streaming/streaming.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { VideoModule } from './video/video.module';
     UserModule,
     AuthModule,
     VideoModule,
+    BatchModule,
+    StreamingModule,
   ],
 })
 export class AppModule implements NestModule {
