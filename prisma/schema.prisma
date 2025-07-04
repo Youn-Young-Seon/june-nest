@@ -17,6 +17,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   Video Video[]
+  Message Message[]
 }
 
 enum Role {
@@ -38,4 +39,37 @@ model Video {
     uploadedBy    User    @relation(fields: [uploadedById], references: [idx])
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+}
+
+model ChatRoom {
+    idx         Int      @id @default(autoincrement())
+    name        String
+    description String?
+    isPrivate   Boolean  @default(false)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    
+    Message Message[]
+}
+
+model Message {
+    idx        Int      @id @default(autoincrement())
+    content    String
+    messageType MessageType @default(TEXT)
+    
+    userId     Int
+    user       User     @relation(fields: [userId], references: [idx], onDelete: Cascade)
+    
+    chatRoomId Int
+    chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [idx], onDelete: Cascade)
+    
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+}
+
+enum MessageType {
+    TEXT
+    IMAGE
+    FILE
+    SYSTEM
 }
