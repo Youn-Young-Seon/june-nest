@@ -40,7 +40,7 @@ COPY --from=builder /usr/src/app/package.json ./
 # Set node environment to production
 ENV NODE_ENV=production
 
-# Expose the application port
+# Expose the application port 
 EXPOSE 5000
 
 # Start the application
