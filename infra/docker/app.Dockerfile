@@ -28,7 +28,7 @@ FROM node:20-alpine
 # Install ffmpeg system dependency
 RUN apk add --no-cache ffmpeg
 
-WORKDIR /usr/src/app
+WORKDIR /usr/src/app 
 
 # Copy artifacts from the builder stage
 COPY --from=builder /usr/src/app/node_modules ./node_modules
