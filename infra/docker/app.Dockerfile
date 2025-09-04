@@ -38,7 +38,7 @@ COPY --from=builder /usr/src/app/prisma ./prisma
 COPY --from=builder /usr/src/app/package.json ./
 
 # Set node environment to production
-ENV NODE_ENV=production 
+ENV NODE_ENV=production
 
 # Expose the application port
 EXPOSE 5000
