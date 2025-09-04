@@ -23,8 +23,8 @@ jobs:
 
       - name: Tag and push image to Docker Hub
         run: |
-          docker tag june-nest youngseon360/june-nest:latest
-          docker push youngseon360/june-nest:latest
+          docker tag june-nest ${{ secrets.DOCKER_USER }}/june-nest:latest
+          docker push ${{ secrets.DOCKER_USER }}/june-nest:latest
 
       - name: Copy k8s files to server
         uses: appleboy/scp-action@master
@@ -34,7 +34,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}          
           source: "infra/k8s/*"
-          target: "~/k8s"
+          target: "~"
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.0
@@ -44,6 +44,6 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}          
           script: |
-            kubectl apply -f ~/k8s/deployment.yaml
-            kubectl apply -f ~/k8s/service.yaml
-            kubectl apply -f ~/k8s/db.yaml
+            kubectl apply -f ~/infra/k8s/deployment.yaml
+            kubectl apply -f ~/infra/k8s/service.yaml
+            kubectl apply -f ~/infra/k8s/db.yaml
