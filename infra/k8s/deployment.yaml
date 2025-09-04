@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: nest-app
-          image: june-nest:latest # Updated image name
+          image: youngseon360/june-nest:latest # Updated image name
           imagePullPolicy: IfNotPresent # Assumes local image
           ports:
             - containerPort: 5000 # Corrected port
