@@ -26,6 +26,16 @@ jobs:
           docker tag june-nest youngseon360/june-nest:latest
           docker push youngseon360/june-nest:latest
 
+      - name: Copy k8s files to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT }}
+          source: "infra/k8s/*"
+          target: "~/k8s"
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.0
         with:
