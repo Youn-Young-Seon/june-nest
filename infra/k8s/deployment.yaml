@@ -25,6 +25,10 @@ spec:
       labels:
         app: nest-app
     spec:
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.28
+        command: ['sh', '-c', "until getent hosts postgres-service > /dev/null; do echo 'waiting for DNS'; sleep 2; done; echo 'DNS resolved, waiting for port'; until nc -z postgres-service 5432; do echo 'waiting for port'; sleep 2; done;"]
       containers:
         - name: nest-app
           image: youngseon360/june-nest:latest # Updated image name
