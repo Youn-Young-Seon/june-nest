@@ -30,8 +30,9 @@ jobs:
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_IP }}
+          port: ${{ secrets.SERVER_PORT }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          key: ${{ secrets.SERVER_SSH_KEY }}          
           script: |
             kubectl apply -f ~/k8s/deployment.yaml
             kubectl apply -f ~/k8s/service.yaml
