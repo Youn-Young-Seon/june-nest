@@ -23,8 +23,8 @@ jobs:
 
       - name: Tag and push image to Docker Hub
         run: |
-          docker tag june-nest june-nest-docker-hub/june-nest:latest
-          docker push june-nest-docker-hub/june-nest:latest
+          docker tag june-nest youngseon360/june-nest:latest
+          docker push youngseon360/june-nest:latest
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.0
