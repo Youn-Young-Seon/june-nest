@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+
+# Build artifacts
+dist
+
+# Git
+.git
+.gitignore
+
+# IDE/Editor config
+.idea
+.vscode
+
+# Logs and temp files
+logs
+*.log
