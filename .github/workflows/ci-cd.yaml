@@ -44,4 +44,5 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}          
           script: |
+            kubectl delete -f ~/infra/k8s/
             kubectl apply -f ~/infra/k8s/
