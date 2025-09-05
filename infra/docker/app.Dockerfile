@@ -22,7 +22,7 @@ EXPOSE 5000
 RUN pnpm prisma generate
 
 # Build the application
-RUN pnpm run build
+RUN pnpm run build 
 
 # Start the application
 CMD ["pnpm", "run", "start:dev"]
