@@ -44,4 +44,6 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}          
           script: |
-            kubectl apply -f ~/infra/k8s/
+            kubectl apply -f ~/infra/k8s/deployment.yaml
+            kubectl apply -f ~/infra/k8s/service.yaml
+            kubectl apply -f ~/infra/k8s/db.yaml

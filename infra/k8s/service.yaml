@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  type: ClusterIP # Exposes the service on a cluster-internal IP
+  selector:
+    app: postgres # This selector matches the labels of the pods in the postgres deployment
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nest-app-loadbalancer
+spec:
+  type: LoadBalancer
+  selector:
+    app: nest-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
