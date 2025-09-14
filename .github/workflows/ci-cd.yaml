@@ -31,7 +31,7 @@ jobs:
           docker push ${{ secrets.DOCKER_USER }}/june-nest:latest
 
       - name: Mark repo as safe
-        run: git config --global --add safe.directory $GITHUB_WORKSPACE
+        run: git config --global --add safe.directory $(pwd)
           
       - name: Commit and push changes
         run: |
