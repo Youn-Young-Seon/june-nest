@@ -29,9 +29,6 @@ jobs:
         run: |
           docker tag june-nest ${{ secrets.DOCKER_USER }}/june-nest:latest
           docker push ${{ secrets.DOCKER_USER }}/june-nest:latest
-
-      - name: Mark repo as safe
-        run: git config --global --add safe.directory '*'
           
       - name: Commit and push changes
         run: |
