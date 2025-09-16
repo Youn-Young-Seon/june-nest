@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: nest-app
 spec:
-  replicas: 3  # 확장성을 위해 3개 Pod
+  replicas: 1
   selector:
     matchLabels:
       app: nest-app
