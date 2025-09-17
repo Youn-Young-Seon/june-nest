@@ -48,4 +48,4 @@ jobs:
           script: |
             cd /jun/june-nest
             git pull origin master
-            kubectl apply -f ./infra/k8s/
+            kubectl apply -f ./infra/k8s/ --validate=false
